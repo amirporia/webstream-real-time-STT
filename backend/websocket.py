@@ -68,22 +68,19 @@ async def handle_websocket(websocket: WebSocket):
 
                         # Convert audio buffer to numpy 
                         if len(pcm_buffer) % 2 != 0 and len(pcm_buffer) != 0:
-                            pcm_array = np.frombuffer(pcm_buffer[:-1].copy(), dtype=np.int16)
+                            pcm_array = np.frombuffer(pcm_buffer[:-1], dtype=np.int16).astype(np.float32) / 32768.0
                         else:
-                            pcm_array = np.frombuffer(pcm_buffer.copy(), dtype=np.int16)
+                            pcm_array = np.frombuffer(pcm_buffer, dtype=np.int16).astype(np.float32) / 32768.0
 
                         # Transcribe the audio and send back a response
-                        tokenize_transcription = model_transcribe(pcm_array, " ".join(item[2] for item in confirmed_transciption), SAMPLE_RATE)
+                        tokenize_transcription = model_transcribe(asr, pcm_array, " ".join(item[2] for item in confirmed_transciption))
                         if len(tokenize_transcription) > 0:
                             offset_ts = tokenize_transcription[0][0]
                             tokenize_transcription = [(a-offset_ts, b-offset_ts, t) for a,b,t in tokenize_transcription]
-                        
+
                         # Confirmed the transcribe by reviewing two times
                         transcribe, confirmed_transciption, confirm_offset_time = confirmation_process(transcribe, tokenize_transcription, confirmed_transciption, confirm_offset_time)
 
-                        print(f"%%%%%%%%%%%%%%%%%%% {" ".join([w for a,b,w in confirmed_transciption])}")
-                        print(f"%%%%%%%%%%%%%%%%%%% {confirmed_transciption}")
-                        print(f"^^^^^^^^^^^^^^^^^^^ {confirm_offset_time}")
   
                         if int(len(pcm_buffer)/(SAMPLE_RATE * BYTES_PER_SAMPLE)) >= 30 and len(tokenize_transcription) > 0:
                             # Trimming buffer when reach to 30s
@@ -97,9 +94,6 @@ async def handle_websocket(websocket: WebSocket):
                             elif pcm_buffer_idx != 0:
                                 pcm_buffer = bytearray(pcm_buffer[pcm_buffer_idx:])
         
-                        print(f"^^^^^^^^^^^^^^^^^^^ {" ".join([w for a,b,w in confirmed_transciption])}")
-                        print(f"^^^^^^^^^^^^^^^^^^^ {confirmed_transciption}")
-                        print(f"******************* {confirm_offset_time}")
                         response = {"lines": [{"speaker": "0", "text": " ".join(item[2] for item in confirmed_transciption)}]}
                         await websocket.send_json(response)
 
